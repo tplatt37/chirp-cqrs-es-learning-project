@@ -2,6 +2,8 @@
 
 A Twitter-like social network application built with TypeScript and React, demonstrating Domain-Driven Design, Hexagonal Architecture, CQRS, and Event Sourcing patterns.
 
+Created with Cline and Anthropic Sonnet 4.5
+
 ## Features
 
 - **Register as a user** - Create a new user account
@@ -150,7 +152,3 @@ This project demonstrates practical implementation of:
 - Hexagonal Architecture by Alistair Cockburn
 - CQRS pattern by Greg Young
 - Event Sourcing pattern
-
-## License
-
-MIT - This is a learning/demo project
