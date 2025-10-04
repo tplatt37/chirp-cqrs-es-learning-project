@@ -79,4 +79,21 @@ export class InMemoryEventStore implements IEventStore {
 
     return sortedEvents;
   }
+
+  // Getter methods for admin panel visualization
+  getEventsByAggregate(): Map<string, DomainEvent[]> {
+    return new Map(this.events);
+  }
+
+  getAggregateCount(): number {
+    return this.events.size;
+  }
+
+  getTotalEventCount(): number {
+    let count = 0;
+    for (const events of this.events.values()) {
+      count += events.length;
+    }
+    return count;
+  }
 }

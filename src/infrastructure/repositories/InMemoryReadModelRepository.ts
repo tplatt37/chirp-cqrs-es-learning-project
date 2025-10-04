@@ -153,4 +153,29 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
     const followers = await this.getFollowers(userId);
     return followers.length > this.CELEBRITY_THRESHOLD;
   }
+
+  // Getter methods for admin panel visualization
+  getAllUsersMap(): Map<string, UserProfileReadModel> {
+    return new Map(this.users);
+  }
+
+  getAllChirpsMap(): Map<string, ChirpReadModel> {
+    return new Map(this.chirps);
+  }
+
+  getFollowingMap(): Map<string, Set<string>> {
+    return new Map(this.following);
+  }
+
+  getMaterializedTimelinesMap(): Map<string, string[]> {
+    return new Map(this.materializedTimelines);
+  }
+
+  getCelebrityChirpsMap(): Map<string, string> {
+    return new Map(this.celebrityChirps);
+  }
+
+  getCelebrityThreshold(): number {
+    return this.CELEBRITY_THRESHOLD;
+  }
 }
