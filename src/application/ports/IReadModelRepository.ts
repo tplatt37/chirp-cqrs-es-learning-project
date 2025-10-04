@@ -32,4 +32,11 @@ export interface IReadModelRepository {
 
   // Feed operations
   getUserFeed(userId: string): Promise<ChirpReadModel[]>;
+
+  // Materialized timeline operations
+  addToTimeline(userId: string, chirpId: string): Promise<void>;
+  getMaterializedTimeline(userId: string): Promise<string[]>;
+  addCelebrityChirp(chirpId: string, authorId: string): Promise<void>;
+  getCelebrityChirpsForUser(userId: string, following: string[]): Promise<string[]>;
+  isCelebrity(userId: string): Promise<boolean>;
 }

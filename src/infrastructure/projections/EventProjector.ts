@@ -99,6 +99,7 @@ export class EventProjector {
       throw new Error(`Author not found: ${event.authorId}`);
     }
 
+    // Save the chirp to read model
     await this.readModelRepository.saveChirp({
       chirpId: event.aggregateId,
       authorId: event.authorId,
@@ -117,6 +118,56 @@ export class EventProjector {
         authorUsername: author.username,
       },
     });
+
+    // WRITE-TIME FAN-OUT: Push chirp to follower timelines
+    const isCelebrity = await this.readModelRepository.isCelebrity(event.authorId);
+    
+    if (isCelebrity) {
+      // Celebrity optimization: don't fan out, track separately
+      await this.readModelRepository.addCelebrityChirp(event.aggregateId, event.authorId);
+      
+      logger.info('EventProjector: Celebrity chirp tracked (no fan-out)', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectChirpPosted',
+        data: { 
+          chirpId: event.aggregateId,
+          authorId: event.authorId,
+          isCelebrity: true,
+        },
+      });
+    } else {
+      // Regular user: fan out to all followers
+      const followers = await this.readModelRepository.getFollowers(event.authorId);
+      
+      logger.debug('EventProjector: Fanning out chirp to followers', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectChirpPosted',
+        data: { 
+          chirpId: event.aggregateId,
+          authorId: event.authorId,
+          followerCount: followers.length,
+        },
+      });
+
+      // Push chirp to each follower's materialized timeline
+      for (const followerId of followers) {
+        await this.readModelRepository.addToTimeline(followerId, event.aggregateId);
+      }
+
+      logger.info('EventProjector: Chirp fanned out to followers', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectChirpPosted',
+        data: { 
+          chirpId: event.aggregateId,
+          authorId: event.authorId,
+          followerCount: followers.length,
+          isCelebrity: false,
+        },
+      });
+    }
   }
 
   private async projectUserFollowed(event: UserFollowed): Promise<void> {
@@ -141,6 +192,53 @@ export class EventProjector {
         followeeId: event.followeeId,
       },
     });
+
+    // TIMELINE BACKFILL: Add existing chirps from followee to follower's timeline
+    const isCelebrity = await this.readModelRepository.isCelebrity(event.followeeId);
+    
+    if (!isCelebrity) {
+      // For non-celebrities, backfill their chirps into the follower's timeline
+      const existingChirps = await this.readModelRepository.getChirpsByAuthor(event.followeeId);
+      
+      logger.debug('EventProjector: Backfilling timeline with existing chirps', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectUserFollowed',
+        data: { 
+          followerId: event.followerId,
+          followeeId: event.followeeId,
+          chirpCount: existingChirps.length,
+        },
+      });
+
+      // Add each chirp to the follower's timeline (newest first)
+      for (const chirp of existingChirps) {
+        await this.readModelRepository.addToTimeline(event.followerId, chirp.chirpId);
+      }
+
+      logger.info('EventProjector: Timeline backfilled with existing chirps', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectUserFollowed',
+        data: { 
+          followerId: event.followerId,
+          followeeId: event.followeeId,
+          chirpCount: existingChirps.length,
+        },
+      });
+    } else {
+      // For celebrities, chirps will be pulled at read time
+      logger.info('EventProjector: Followed user is celebrity, no backfill needed', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectUserFollowed',
+        data: { 
+          followerId: event.followerId,
+          followeeId: event.followeeId,
+          isCelebrity: true,
+        },
+      });
+    }
   }
 
   async rebuildProjections(): Promise<void> {
