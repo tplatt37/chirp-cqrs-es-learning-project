@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AppProvider } from './context/AppContext';
 import { useAppState } from './hooks/useAppState';
 import { RegisterForm } from './components/RegisterForm';
@@ -9,6 +10,7 @@ import { logger } from '../infrastructure/logging/Logger';
 
 function AppContent() {
   const { currentUserId, setCurrentUserId, users, feed, error, setError, refresh } = useAppState();
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
 
   const currentUser = users.find((u) => u.userId === currentUserId);
 
@@ -35,9 +37,26 @@ function AppContent() {
   };
 
   return (
-    <>
-      <AdminPanel />
-      <div style={styles.container}>
+    <div style={styles.wrapper}>
+      {/* Admin Panel Toggle Button */}
+      <button
+        onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+        style={{
+          ...styles.toggleButton,
+          backgroundColor: isAdminPanelOpen ? '#e74c3c' : '#1da1f2',
+        }}
+        title="Toggle Admin Panel"
+      >
+        {isAdminPanelOpen ? '✖' : '⚙️'}
+      </button>
+
+      {/* Main Layout Container */}
+      <div style={styles.layoutContainer}>
+        {/* Main App Content */}
+        <div style={{
+          ...styles.container,
+          width: isAdminPanelOpen ? '50%' : '100%',
+        }}>
       <header style={styles.header}>
         <h1 style={styles.title}>🐦 Chirp</h1>
         <p style={styles.subtitle}>A DDD/CQRS/Event Sourcing Demo</p>
@@ -99,8 +118,14 @@ function AppContent() {
           )}
         </main>
       </div>
+        </div>
+
+        {/* Admin Panel */}
+        {isAdminPanelOpen && (
+          <AdminPanel />
+        )}
+      </div>
     </div>
-    </>
   );
 }
 
@@ -113,9 +138,36 @@ export function App() {
 }
 
 const styles = {
+  wrapper: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    minHeight: '100vh',
+  },
+  toggleButton: {
+    position: 'fixed' as const,
+    top: '20px',
+    right: '20px',
+    width: '50px',
+    height: '50px',
+    borderRadius: '50%',
+    border: 'none',
+    color: 'white',
+    fontSize: '24px',
+    cursor: 'pointer',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+    zIndex: 1000,
+    transition: 'all 0.3s ease',
+  },
+  layoutContainer: {
+    display: 'flex',
+    width: '100%',
+    minHeight: '100vh',
+  },
   container: {
     minHeight: '100vh',
     backgroundColor: '#f0f2f5',
+    transition: 'width 0.3s ease',
+    overflow: 'auto',
   },
   header: {
     backgroundColor: '#1da1f2',

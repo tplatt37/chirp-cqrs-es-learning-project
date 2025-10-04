@@ -9,7 +9,6 @@ type TabType = 'logs' | 'eventStore' | 'readModel';
 
 export function AdminPanel() {
   const container = useContainer();
-  const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('logs');
   const [logLevel, setLogLevel] = useState<LogLevel>('debug');
   const [isEnabled, setIsEnabled] = useState(true);
@@ -636,22 +635,7 @@ export function AdminPanel() {
   );
 
   return (
-    <>
-      {/* Floating toggle button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          ...styles.toggleButton,
-          backgroundColor: isOpen ? '#e74c3c' : '#1da1f2',
-        }}
-        title="Toggle Admin Panel"
-      >
-        {isOpen ? '✖' : '⚙️'}
-      </button>
-
-      {/* Admin Panel */}
-      {isOpen && (
-        <div style={styles.panel}>
+    <div style={styles.panel}>
           <div style={styles.header}>
             <h3 style={styles.title}>🔍 Administrator Panel</h3>
             <p style={styles.subtitle}>CQRS/Event Sourcing Data Inspector</p>
@@ -692,38 +676,17 @@ export function AdminPanel() {
           {activeTab === 'logs' && renderLogsTab()}
           {activeTab === 'eventStore' && renderEventStoreTab()}
           {activeTab === 'readModel' && renderReadModelTab()}
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
 const styles = {
-  toggleButton: {
-    position: 'fixed' as const,
-    top: '20px',
-    right: '20px',
-    width: '50px',
-    height: '50px',
-    borderRadius: '50%',
-    border: 'none',
-    color: 'white',
-    fontSize: '24px',
-    cursor: 'pointer',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-    zIndex: 1000,
-    transition: 'all 0.3s ease',
-  },
   panel: {
-    position: 'fixed' as const,
-    top: '80px',
-    right: '20px',
-    width: '650px',
-    maxHeight: '85vh',
+    width: '50%',
+    height: '100vh',
     backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-    zIndex: 999,
+    borderLeft: '2px solid #e0e0e0',
+    boxShadow: '-4px 0 16px rgba(0,0,0,0.1)',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column' as const,
