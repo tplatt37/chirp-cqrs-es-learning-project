@@ -5,7 +5,7 @@ import { useContainer } from '../context/AppContext';
 import { DomainEvent } from '../../domain/events/DomainEvent';
 import { UserProfileReadModel, ChirpReadModel } from '../../application/ports/IReadModelRepository';
 
-type TabType = 'logs' | 'eventStore' | 'readModel';
+type TabType = 'logs' | 'eventStore' | 'readModel' | 'hydrate';
 
 export function AdminPanel() {
   const container = useContainer();
@@ -50,6 +50,20 @@ export function AdminPanel() {
 
   const [expandedAggregates, setExpandedAggregates] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['users']));
+
+  // Hydration state
+  const [isHydrating, setIsHydrating] = useState(false);
+  const [hydrationStatus, setHydrationStatus] = useState<string>('');
+  const [hydrationError, setHydrationError] = useState<string>('');
+  const [hydrationStats, setHydrationStats] = useState<{
+    usersCreated: number;
+    chirpsPosted: number;
+    followsCreated: number;
+  }>({
+    usersCreated: 0,
+    chirpsPosted: 0,
+    followsCreated: 0,
+  });
 
   const logLevels: LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error'];
   const configService = LoggerConfigService.getInstance();
@@ -173,6 +187,137 @@ export function AdminPanel() {
       case 'ChirpPosted': return '#3498db';
       case 'UserFollowed': return '#9b59b6';
       default: return '#95a5a6';
+    }
+  };
+
+  const handleHydrate = async () => {
+    setIsHydrating(true);
+    setHydrationError('');
+    setHydrationStats({ usersCreated: 0, chirpsPosted: 0, followsCreated: 0 });
+
+    try {
+      // Define test usernames
+      const usernames = ['alice_smith', 'bob_johnson', 'carol_davis', 'dave_wilson'];
+      
+      // Define chirp templates
+      const chirpTemplates = [
+        "Just had the best coffee of my life! ☕",
+        "Working on some exciting new features today 🚀",
+        "Does anyone else think event sourcing is amazing?",
+        "Beautiful weather outside! Perfect day for a walk.",
+        "Learning so much about CQRS patterns lately.",
+        "Can't believe it's already Friday!",
+        "Just finished reading an excellent tech article.",
+        "Who else is excited about the weekend?",
+        "Debugging is like being a detective in a crime movie.",
+        "Sometimes the simplest solution is the best solution.",
+        "Coffee: because adulting is hard ☕",
+        "Code review time! Always learning something new.",
+        "That feeling when your tests pass on the first try 🎉",
+        "Remember to take breaks and stretch!",
+        "Refactoring code is oddly satisfying.",
+        "Just discovered a really cool design pattern!",
+      ];
+
+      const userIds: string[] = [];
+
+      // Create 4 users
+      setHydrationStatus('Creating users...');
+      for (let i = 0; i < usernames.length; i++) {
+        const username = usernames[i];
+        if (!username) continue;
+        
+        try {
+          const userId = await container.registerUserHandler.handle({
+            username,
+          });
+          await container.projectEventsAfterCommand();
+          if (userId) {
+            userIds.push(userId);
+            setHydrationStats(prev => ({ ...prev, usersCreated: prev.usersCreated + 1 }));
+          }
+        } catch (error) {
+          // User might already exist, try to find existing user
+          const existingUser = await container.readModelRepository.getUserProfileByUsername(username);
+          if (existingUser) {
+            userIds.push(existingUser.userId);
+          }
+          console.warn(`User ${username} might already exist`);
+        }
+      }
+
+      // Small delay for visibility
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Post 3-4 chirps per user
+      setHydrationStatus('Posting chirps...');
+      for (const userId of userIds) {
+        const chirpCount = 3 + Math.floor(Math.random() * 2); // 3 or 4 chirps
+        for (let i = 0; i < chirpCount; i++) {
+          try {
+            const randomChirp = chirpTemplates[Math.floor(Math.random() * chirpTemplates.length)];
+            if (!randomChirp) continue;
+            
+            await container.postChirpHandler.handle({
+              authorId: userId,
+              content: randomChirp,
+            });
+            await container.projectEventsAfterCommand();
+            setHydrationStats(prev => ({ ...prev, chirpsPosted: prev.chirpsPosted + 1 }));
+            await new Promise(resolve => setTimeout(resolve, 50));
+          } catch (error) {
+            console.error('Error posting chirp:', error);
+          }
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Create follow relationships
+      setHydrationStatus('Creating follow relationships...');
+      const followPairs: [number, number][] = [
+        [0, 1], // alice follows bob
+        [0, 2], // alice follows carol
+        [1, 0], // bob follows alice
+        [1, 3], // bob follows dave
+        [2, 3], // carol follows dave
+        [2, 0], // carol follows alice
+        [3, 1], // dave follows bob
+        [3, 2], // dave follows carol
+      ];
+
+      for (const pair of followPairs) {
+        const followerIdx = pair[0];
+        const followeeIdx = pair[1];
+        const followerId = userIds[followerIdx];
+        const followeeId = userIds[followeeIdx];
+        if (followerId && followeeId) {
+          try {
+            await container.followUserHandler.handle({
+              followerId,
+              followeeId,
+            });
+            await container.projectEventsAfterCommand();
+            setHydrationStats(prev => ({ ...prev, followsCreated: prev.followsCreated + 1 }));
+            await new Promise(resolve => setTimeout(resolve, 50));
+          } catch (error) {
+            console.error('Error creating follow relationship:', error);
+          }
+        }
+      }
+
+      setHydrationStatus('✅ Hydration complete!');
+    } catch (error) {
+      setHydrationError(`Error during hydration: ${error instanceof Error ? error.message : String(error)}`);
+      setHydrationStatus('❌ Hydration failed');
+    } finally {
+      setIsHydrating(false);
+    }
+  };
+
+  const handleClearData = () => {
+    if (window.confirm('Are you sure you want to clear all data? This will reload the page.')) {
+      window.location.reload();
     }
   };
 
@@ -403,6 +548,94 @@ export function AdminPanel() {
               </div>
             ))
           )}
+        </div>
+      </div>
+    </>
+  );
+
+  const renderHydrateTab = () => (
+    <>
+      <div style={styles.hydrateContainer}>
+        <div style={styles.hydrateHeader}>
+          <h4 style={styles.hydrateTitle}>💧 Database Hydration</h4>
+          <p style={styles.hydrateSubtitle}>
+            Generate realistic test data to explore the CQRS/Event Sourcing features
+          </p>
+        </div>
+
+        <div style={styles.hydrateContent}>
+          <div style={styles.hydrateInfoBox}>
+            <p style={{margin: '0 0 10px 0'}}>
+              <strong>What will be created:</strong>
+            </p>
+            <ul style={{margin: 0, paddingLeft: '20px'}}>
+              <li>4 users with realistic usernames</li>
+              <li>3-4 random chirps per user</li>
+              <li>8 follow relationships creating an interconnected social graph</li>
+            </ul>
+          </div>
+
+          {hydrationStatus && (
+            <div style={{
+              ...styles.hydrateStatusBox,
+              backgroundColor: hydrationStatus.includes('✅') ? '#d4edda' : hydrationStatus.includes('❌') ? '#f8d7da' : '#cce5ff',
+              borderColor: hydrationStatus.includes('✅') ? '#c3e6cb' : hydrationStatus.includes('❌') ? '#f5c6cb' : '#b8daff',
+              color: hydrationStatus.includes('✅') ? '#155724' : hydrationStatus.includes('❌') ? '#721c24' : '#004085',
+            }}>
+              {hydrationStatus}
+            </div>
+          )}
+
+          {hydrationError && (
+            <div style={styles.hydrateErrorBox}>
+              {hydrationError}
+            </div>
+          )}
+
+          <div style={styles.hydrateStatsGrid}>
+            <div style={styles.hydrateStat}>
+              <div style={styles.hydrateStatLabel}>Users Created</div>
+              <div style={styles.hydrateStatValue}>{hydrationStats.usersCreated}</div>
+            </div>
+            <div style={styles.hydrateStat}>
+              <div style={styles.hydrateStatLabel}>Chirps Posted</div>
+              <div style={styles.hydrateStatValue}>{hydrationStats.chirpsPosted}</div>
+            </div>
+            <div style={styles.hydrateStat}>
+              <div style={styles.hydrateStatLabel}>Follows Created</div>
+              <div style={styles.hydrateStatValue}>{hydrationStats.followsCreated}</div>
+            </div>
+          </div>
+
+          <div style={styles.hydrateActions}>
+            <button
+              onClick={handleHydrate}
+              disabled={isHydrating}
+              style={{
+                ...styles.hydrateButton,
+                backgroundColor: isHydrating ? '#95a5a6' : '#2ecc71',
+                cursor: isHydrating ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isHydrating ? '⏳ Generating Data...' : '▶ Generate Test Data'}
+            </button>
+            <button
+              onClick={handleClearData}
+              disabled={isHydrating}
+              style={{
+                ...styles.hydrateButton,
+                backgroundColor: isHydrating ? '#95a5a6' : '#e74c3c',
+                cursor: isHydrating ? 'not-allowed' : 'pointer',
+              }}
+            >
+              🗑️ Clear All Data
+            </button>
+          </div>
+
+          <div style={styles.hydrateNote}>
+            <strong>Note:</strong> The "Clear All Data" button will reload the page, 
+            which resets all in-memory data. This is the quickest way to start fresh.
+          </div>
         </div>
       </div>
     </>
@@ -670,12 +903,22 @@ export function AdminPanel() {
             >
               📊 Read Model
             </button>
+            <button
+              style={{
+                ...styles.tab,
+                ...(activeTab === 'hydrate' ? styles.activeTab : {}),
+              }}
+              onClick={() => setActiveTab('hydrate')}
+            >
+              💧 Hydrate
+            </button>
           </div>
 
           {/* Tab Content */}
           {activeTab === 'logs' && renderLogsTab()}
           {activeTab === 'eventStore' && renderEventStoreTab()}
           {activeTab === 'readModel' && renderReadModelTab()}
+          {activeTab === 'hydrate' && renderHydrateTab()}
     </div>
   );
 }
@@ -1061,6 +1304,102 @@ const styles = {
     fontSize: '12px',
     color: '#856404',
     marginBottom: '10px',
+    border: '1px solid #ffeeba',
+  },
+  hydrateContainer: {
+    padding: '20px',
+    height: '100%',
+    overflowY: 'auto' as const,
+  },
+  hydrateHeader: {
+    marginBottom: '20px',
+    textAlign: 'center' as const,
+  },
+  hydrateTitle: {
+    margin: '0 0 10px 0',
+    fontSize: '24px',
+    color: '#1da1f2',
+  },
+  hydrateSubtitle: {
+    margin: 0,
+    fontSize: '14px',
+    color: '#666',
+  },
+  hydrateContent: {
+    maxWidth: '600px',
+    margin: '0 auto',
+  },
+  hydrateInfoBox: {
+    padding: '15px',
+    backgroundColor: '#e8f4f8',
+    borderRadius: '6px',
+    marginBottom: '20px',
+    fontSize: '13px',
+    border: '1px solid #b8daff',
+  },
+  hydrateStatusBox: {
+    padding: '12px',
+    borderRadius: '6px',
+    marginBottom: '20px',
+    fontSize: '14px',
+    fontWeight: '500' as const,
+    border: '1px solid',
+    textAlign: 'center' as const,
+  },
+  hydrateErrorBox: {
+    padding: '12px',
+    backgroundColor: '#f8d7da',
+    borderRadius: '6px',
+    marginBottom: '20px',
+    fontSize: '13px',
+    color: '#721c24',
+    border: '1px solid #f5c6cb',
+  },
+  hydrateStatsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '15px',
+    marginBottom: '25px',
+  },
+  hydrateStat: {
+    padding: '15px',
+    backgroundColor: '#f9f9f9',
+    borderRadius: '6px',
+    textAlign: 'center' as const,
+    border: '1px solid #e0e0e0',
+  },
+  hydrateStatLabel: {
+    fontSize: '12px',
+    color: '#666',
+    marginBottom: '8px',
+    fontWeight: '500' as const,
+  },
+  hydrateStatValue: {
+    fontSize: '28px',
+    fontWeight: 'bold' as const,
+    color: '#1da1f2',
+  },
+  hydrateActions: {
+    display: 'flex',
+    gap: '15px',
+    marginBottom: '20px',
+  },
+  hydrateButton: {
+    flex: 1,
+    padding: '12px 20px',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: '500' as const,
+    transition: 'all 0.2s',
+  },
+  hydrateNote: {
+    padding: '12px',
+    backgroundColor: '#fff3cd',
+    borderRadius: '6px',
+    fontSize: '12px',
+    color: '#856404',
     border: '1px solid #ffeeba',
   },
 };
