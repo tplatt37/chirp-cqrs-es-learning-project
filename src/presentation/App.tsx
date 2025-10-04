@@ -4,19 +4,40 @@ import { RegisterForm } from './components/RegisterForm';
 import { ChirpComposer } from './components/ChirpComposer';
 import { ChirpList } from './components/ChirpList';
 import { UserList } from './components/UserList';
+import { AdminPanel } from './components/AdminPanel';
+import { logger } from '../infrastructure/logging/Logger';
 
 function AppContent() {
   const { currentUserId, setCurrentUserId, users, feed, error, setError, refresh } = useAppState();
 
   const currentUser = users.find((u) => u.userId === currentUserId);
 
+  logger.debug('AppContent: Rendering', {
+    layer: 'presentation',
+    component: 'AppContent',
+    action: 'render',
+    data: { 
+      currentUserId,
+      userCount: users.length,
+      chirpCount: feed.length,
+      hasError: !!error,
+    },
+  });
+
   const handleSuccess = () => {
+    logger.info('AppContent: Action completed successfully', {
+      layer: 'presentation',
+      component: 'AppContent',
+      action: 'handleSuccess',
+    });
     setError(null);
     refresh();
   };
 
   return (
-    <div style={styles.container}>
+    <>
+      <AdminPanel />
+      <div style={styles.container}>
       <header style={styles.header}>
         <h1 style={styles.title}>🐦 Chirp</h1>
         <p style={styles.subtitle}>A DDD/CQRS/Event Sourcing Demo</p>
@@ -79,6 +100,7 @@ function AppContent() {
         </main>
       </div>
     </div>
+    </>
   );
 }
 

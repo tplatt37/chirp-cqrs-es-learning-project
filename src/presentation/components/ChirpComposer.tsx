@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useContainer } from '../context/AppContext';
 import { PostChirpCommand } from '../../application/commands/PostChirpCommand';
+import { logger } from '../../infrastructure/logging/Logger';
 
 interface ChirpComposerProps {
   currentUserId: string;
@@ -16,20 +17,75 @@ export function ChirpComposer({ currentUserId, onSuccess, onError }: ChirpCompos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    logger.info('ChirpComposer: User submitted chirp', {
+      layer: 'presentation',
+      component: 'ChirpComposer',
+      action: 'handleSubmit',
+      data: { 
+        currentUserId,
+        contentLength: content.length,
+      },
+    });
+
     if (!content.trim()) {
+      logger.warn('ChirpComposer: Empty content submitted', {
+        layer: 'presentation',
+        component: 'ChirpComposer',
+        action: 'handleSubmit',
+      });
       onError('Chirp content is required');
       return;
     }
 
     setIsSubmitting(true);
+    const timer = logger.startTimer();
+
     try {
+      logger.debug('ChirpComposer: Creating PostChirpCommand', {
+        layer: 'presentation',
+        component: 'ChirpComposer',
+        action: 'createCommand',
+        data: { currentUserId, contentLength: content.length },
+      });
+
       const command = new PostChirpCommand(currentUserId, content);
+      
+      logger.info('ChirpComposer: Executing command via handler', {
+        layer: 'presentation',
+        component: 'ChirpComposer',
+        action: 'executeCommand',
+      });
+
       await container.postChirpHandler.handle(command);
+      
+      logger.debug('ChirpComposer: Projecting events after command', {
+        layer: 'presentation',
+        component: 'ChirpComposer',
+        action: 'projectEvents',
+      });
+
       await container.projectEventsAfterCommand();
       
+      const duration = timer();
+      logger.info('ChirpComposer: Chirp posted successfully', {
+        layer: 'presentation',
+        component: 'ChirpComposer',
+        action: 'handleSubmit',
+        data: { currentUserId },
+        duration,
+      });
+
       setContent('');
       onSuccess();
     } catch (err) {
+      const duration = timer();
+      logger.error('ChirpComposer: Failed to post chirp', err instanceof Error ? err : undefined, {
+        layer: 'presentation',
+        component: 'ChirpComposer',
+        action: 'handleSubmit',
+        data: { currentUserId },
+        duration,
+      });
       onError(err instanceof Error ? err.message : 'Failed to post chirp');
     } finally {
       setIsSubmitting(false);

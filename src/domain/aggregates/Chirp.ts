@@ -3,6 +3,7 @@ import { UserId } from '../value-objects/UserId';
 import { ChirpContent } from '../value-objects/ChirpContent';
 import { DomainEvent } from '../events/DomainEvent';
 import { ChirpPosted } from '../events/ChirpPosted';
+import { logger } from '../../infrastructure/logging/Logger';
 
 export class Chirp {
   private id: ChirpId;
@@ -28,6 +29,16 @@ export class Chirp {
   }
 
   static post(authorId: UserId, content: ChirpContent): Chirp {
+    logger.debug('Creating new Chirp aggregate', {
+      layer: 'domain',
+      component: 'Chirp',
+      action: 'post',
+      data: { 
+        authorId: authorId.getValue(),
+        contentLength: content.getValue().length,
+      },
+    });
+
     const chirpId = ChirpId.create();
     const postedAt = new Date();
     const chirp = new Chirp(chirpId, authorId, content, postedAt, 0);
@@ -39,6 +50,18 @@ export class Chirp {
       chirp.version + 1
     );
     
+    logger.info('Chirp aggregate created, emitting ChirpPosted event', {
+      layer: 'domain',
+      component: 'Chirp',
+      action: 'post',
+      data: { 
+        chirpId: chirpId.getValue(),
+        authorId: authorId.getValue(),
+        content: content.getValue(),
+        version: event.version,
+      },
+    });
+
     chirp.applyEvent(event);
     chirp.uncommittedEvents.push(event);
     
@@ -46,6 +69,13 @@ export class Chirp {
   }
 
   static fromEvents(events: DomainEvent[]): Chirp {
+    logger.trace('Reconstructing Chirp aggregate from events', {
+      layer: 'domain',
+      component: 'Chirp',
+      action: 'fromEvents',
+      data: { eventCount: events.length },
+    });
+
     if (events.length === 0) {
       throw new Error('Cannot create chirp from empty event list');
     }
@@ -69,10 +99,31 @@ export class Chirp {
       chirp.applyEvent(event);
     });
 
+    logger.debug('Chirp aggregate reconstructed from events', {
+      layer: 'domain',
+      component: 'Chirp',
+      action: 'fromEvents',
+      data: { 
+        chirpId: chirpId.getValue(),
+        authorId: authorId.getValue(),
+        finalVersion: chirp.version,
+      },
+    });
+
     return chirp;
   }
 
   private applyEvent(event: DomainEvent): void {
+    logger.trace('Applying event to Chirp aggregate', {
+      layer: 'domain',
+      component: 'Chirp',
+      action: 'applyEvent',
+      data: { 
+        eventType: event.constructor.name,
+        eventVersion: event.version,
+      },
+    });
+
     if (event instanceof ChirpPosted) {
       this.id = ChirpId.fromString(event.aggregateId);
       this.authorId = UserId.fromString(event.authorId);

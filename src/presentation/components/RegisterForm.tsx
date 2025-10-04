@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useContainer } from '../context/AppContext';
 import { RegisterUserCommand } from '../../application/commands/RegisterUserCommand';
+import { logger } from '../../infrastructure/logging/Logger';
 
 interface RegisterFormProps {
   onSuccess: (userId: string) => void;
@@ -15,20 +16,72 @@ export function RegisterForm({ onSuccess, onError }: RegisterFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    logger.info('RegisterForm: User submitted registration form', {
+      layer: 'presentation',
+      component: 'RegisterForm',
+      action: 'handleSubmit',
+      data: { username },
+    });
+
     if (!username.trim()) {
+      logger.warn('RegisterForm: Empty username submitted', {
+        layer: 'presentation',
+        component: 'RegisterForm',
+        action: 'handleSubmit',
+      });
       onError('Username is required');
       return;
     }
 
     setIsSubmitting(true);
+    const timer = logger.startTimer();
+
     try {
+      logger.debug('RegisterForm: Creating RegisterUserCommand', {
+        layer: 'presentation',
+        component: 'RegisterForm',
+        action: 'createCommand',
+        data: { username },
+      });
+
       const command = new RegisterUserCommand(username);
+      
+      logger.info('RegisterForm: Executing command via handler', {
+        layer: 'presentation',
+        component: 'RegisterForm',
+        action: 'executeCommand',
+      });
+
       const userId = await container.registerUserHandler.handle(command);
+      
+      logger.debug('RegisterForm: Projecting events after command', {
+        layer: 'presentation',
+        component: 'RegisterForm',
+        action: 'projectEvents',
+      });
+
       await container.projectEventsAfterCommand();
       
+      const duration = timer();
+      logger.info('RegisterForm: User registered successfully', {
+        layer: 'presentation',
+        component: 'RegisterForm',
+        action: 'handleSubmit',
+        data: { userId, username },
+        duration,
+      });
+
       setUsername('');
       onSuccess(userId);
     } catch (err) {
+      const duration = timer();
+      logger.error('RegisterForm: Registration failed', err instanceof Error ? err : undefined, {
+        layer: 'presentation',
+        component: 'RegisterForm',
+        action: 'handleSubmit',
+        data: { username },
+        duration,
+      });
       onError(err instanceof Error ? err.message : 'Failed to register user');
     } finally {
       setIsSubmitting(false);
