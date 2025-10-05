@@ -2,9 +2,10 @@ import { ChirpReadModel } from '../../application/ports/IReadModelRepository';
 
 interface ChirpListProps {
   chirps: ChirpReadModel[];
+  title?: string;
 }
 
-export function ChirpList({ chirps }: ChirpListProps) {
+export function ChirpList({ chirps, title = 'Your Feed' }: ChirpListProps) {
   if (chirps.length === 0) {
     return (
       <div style={styles.empty}>
@@ -15,7 +16,7 @@ export function ChirpList({ chirps }: ChirpListProps) {
 
   return (
     <div style={styles.list}>
-      <h2 style={styles.heading}>Your Feed</h2>
+      <h2 style={styles.heading}>{title}</h2>
       {chirps.map((chirp) => (
         <div key={chirp.chirpId} style={styles.chirp}>
           <div style={styles.header}>

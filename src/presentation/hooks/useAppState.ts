@@ -9,6 +9,7 @@ export function useAppState() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<UserProfileReadModel[]>([]);
   const [feed, setFeed] = useState<ChirpReadModel[]>([]);
+  const [ownChirps, setOwnChirps] = useState<ChirpReadModel[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
@@ -33,10 +34,25 @@ export function useAppState() {
     }
   }, [currentUserId, container]);
 
+  const loadOwnChirps = useCallback(async () => {
+    if (!currentUserId) {
+      setOwnChirps([]);
+      return;
+    }
+    
+    try {
+      const chirps = await container.readModelRepository.getChirpsByAuthor(currentUserId);
+      setOwnChirps(chirps);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load own chirps');
+    }
+  }, [currentUserId, container]);
+
   const refresh = useCallback(async () => {
     await loadUsers();
     await loadFeed();
-  }, [loadUsers, loadFeed]);
+    await loadOwnChirps();
+  }, [loadUsers, loadFeed, loadOwnChirps]);
 
   useEffect(() => {
     loadUsers();
@@ -46,11 +62,16 @@ export function useAppState() {
     loadFeed();
   }, [loadFeed]);
 
+  useEffect(() => {
+    loadOwnChirps();
+  }, [loadOwnChirps]);
+
   return {
     currentUserId,
     setCurrentUserId,
     users,
     feed,
+    ownChirps,
     error,
     setError,
     refresh,

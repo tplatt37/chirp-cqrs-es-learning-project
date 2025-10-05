@@ -9,7 +9,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { logger } from '../infrastructure/logging/Logger';
 
 function AppContent() {
-  const { currentUserId, setCurrentUserId, users, feed, error, setError, refresh } = useAppState();
+  const { currentUserId, setCurrentUserId, users, feed, ownChirps, error, setError, refresh } = useAppState();
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
 
   const currentUser = users.find((u) => u.userId === currentUserId);
@@ -99,7 +99,9 @@ function AppContent() {
                 onError={setError}
               />
 
-              <ChirpList chirps={feed} />
+              <ChirpList chirps={feed} title="Your Feed" />
+              
+              <ChirpList chirps={ownChirps} title="Your Chirps" />
             </>
           ) : (
             <div style={styles.welcome}>
