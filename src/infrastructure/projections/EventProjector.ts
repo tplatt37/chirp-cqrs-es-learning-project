@@ -2,6 +2,7 @@ import { DomainEvent } from '../../domain/events/DomainEvent';
 import { UserRegistered } from '../../domain/events/UserRegistered';
 import { ChirpPosted } from '../../domain/events/ChirpPosted';
 import { UserFollowed } from '../../domain/events/UserFollowed';
+import { UserUnfollowed } from '../../domain/events/UserUnfollowed';
 import { IReadModelRepository } from '../../application/ports/IReadModelRepository';
 import { IEventStore } from '../../application/ports/IEventStore';
 import { logger } from '../logging/Logger';
@@ -32,6 +33,8 @@ export class EventProjector {
       await this.projectChirpPosted(event);
     } else if (event instanceof UserFollowed) {
       await this.projectUserFollowed(event);
+    } else if (event instanceof UserUnfollowed) {
+      await this.projectUserUnfollowed(event);
     }
 
     const duration = timer();
@@ -178,10 +181,11 @@ export class EventProjector {
       data: { 
         followerId: event.followerId,
         followeeId: event.followeeId,
+        relationshipId: event.aggregateId,
       },
     });
 
-    await this.readModelRepository.addFollowing(event.followerId, event.followeeId);
+    await this.readModelRepository.addFollowing(event.followerId, event.followeeId, event.aggregateId);
 
     logger.info('EventProjector: Follow relationship added to read model', {
       layer: 'infrastructure',
@@ -232,6 +236,74 @@ export class EventProjector {
         layer: 'infrastructure',
         component: 'EventProjector',
         action: 'projectUserFollowed',
+        data: { 
+          followerId: event.followerId,
+          followeeId: event.followeeId,
+          isCelebrity: true,
+        },
+      });
+    }
+  }
+
+  private async projectUserUnfollowed(event: UserUnfollowed): Promise<void> {
+    logger.debug('EventProjector: Projecting UserUnfollowed event', {
+      layer: 'infrastructure',
+      component: 'EventProjector',
+      action: 'projectUserUnfollowed',
+      data: { 
+        followerId: event.followerId,
+        followeeId: event.followeeId,
+      },
+    });
+
+    // Remove following relationship from read model
+    await this.readModelRepository.removeFollowing(event.followerId, event.followeeId);
+
+    logger.info('EventProjector: Follow relationship removed from read model', {
+      layer: 'infrastructure',
+      component: 'EventProjector',
+      action: 'projectUserUnfollowed',
+      data: { 
+        followerId: event.followerId,
+        followeeId: event.followeeId,
+      },
+    });
+
+    // TIMELINE CLEANUP: Remove followee's chirps from follower's timeline
+    const isCelebrity = await this.readModelRepository.isCelebrity(event.followeeId);
+    
+    if (!isCelebrity) {
+      // For non-celebrities, remove their chirps from the follower's timeline
+      logger.debug('EventProjector: Removing chirps from timeline', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectUserUnfollowed',
+        data: { 
+          followerId: event.followerId,
+          followeeId: event.followeeId,
+        },
+      });
+
+      await this.readModelRepository.removeAllChirpsFromTimeline(
+        event.followerId,
+        event.followeeId
+      );
+
+      logger.info('EventProjector: Timeline cleaned up after unfollow', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectUserUnfollowed',
+        data: { 
+          followerId: event.followerId,
+          followeeId: event.followeeId,
+        },
+      });
+    } else {
+      // For celebrities, chirps are pulled at read time, so no cleanup needed
+      logger.info('EventProjector: Unfollowed user is celebrity, no timeline cleanup needed', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectUserUnfollowed',
         data: { 
           followerId: event.followerId,
           followeeId: event.followeeId,

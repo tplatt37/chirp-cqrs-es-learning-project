@@ -1,19 +1,22 @@
 import { UserId } from '../value-objects/UserId';
 import { DomainEvent } from '../events/DomainEvent';
 import { UserFollowed } from '../events/UserFollowed';
-import { CannotFollowSelfError } from '../errors/DomainError';
+import { UserUnfollowed } from '../events/UserUnfollowed';
+import { CannotFollowSelfError, NotFollowingError } from '../errors/DomainError';
 
 export class FollowRelationship {
   private id: string;
   private followerId: UserId;
   private followeeId: UserId;
+  private isActive: boolean;
   private version: number;
   private uncommittedEvents: DomainEvent[];
 
-  private constructor(id: string, followerId: UserId, followeeId: UserId, version: number) {
+  private constructor(id: string, followerId: UserId, followeeId: UserId, isActive: boolean, version: number) {
     this.id = id;
     this.followerId = followerId;
     this.followeeId = followeeId;
+    this.isActive = isActive;
     this.version = version;
     this.uncommittedEvents = [];
   }
@@ -24,7 +27,7 @@ export class FollowRelationship {
     }
 
     const relationshipId = crypto.randomUUID();
-    const relationship = new FollowRelationship(relationshipId, followerId, followeeId, 0);
+    const relationship = new FollowRelationship(relationshipId, followerId, followeeId, true, 0);
     
     const event = new UserFollowed(
       relationshipId,
@@ -56,7 +59,7 @@ export class FollowRelationship {
     const relationshipId = firstEvent.aggregateId;
     const followerId = UserId.fromString(firstEvent.followerId);
     const followeeId = UserId.fromString(firstEvent.followeeId);
-    const relationship = new FollowRelationship(relationshipId, followerId, followeeId, 0);
+    const relationship = new FollowRelationship(relationshipId, followerId, followeeId, true, 0);
 
     events.forEach(event => {
       relationship.applyEvent(event);
@@ -70,6 +73,9 @@ export class FollowRelationship {
       this.id = event.aggregateId;
       this.followerId = UserId.fromString(event.followerId);
       this.followeeId = UserId.fromString(event.followeeId);
+      this.isActive = true;
+    } else if (event instanceof UserUnfollowed) {
+      this.isActive = false;
     }
     this.version = event.version;
   }
@@ -88,6 +94,29 @@ export class FollowRelationship {
 
   getVersion(): number {
     return this.version;
+  }
+
+  isActiveRelationship(): boolean {
+    return this.isActive;
+  }
+
+  unfollow(): void {
+    if (!this.isActive) {
+      throw new NotFollowingError(
+        this.followerId.getValue(),
+        this.followeeId.getValue()
+      );
+    }
+
+    const event = new UserUnfollowed(
+      this.id,
+      this.followerId.getValue(),
+      this.followeeId.getValue(),
+      this.version + 1
+    );
+
+    this.applyEvent(event);
+    this.uncommittedEvents.push(event);
   }
 
   getUncommittedEvents(): DomainEvent[] {

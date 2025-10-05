@@ -25,16 +25,20 @@ export interface IReadModelRepository {
   getAllChirps(): Promise<ChirpReadModel[]>;
 
   // Follow operations
-  addFollowing(followerId: string, followeeId: string): Promise<void>;
+  addFollowing(followerId: string, followeeId: string, relationshipId?: string): Promise<void>;
+  removeFollowing(followerId: string, followeeId: string): Promise<void>;
   getFollowing(userId: string): Promise<string[]>;
   getFollowers(userId: string): Promise<string[]>;
   isFollowing(followerId: string, followeeId: string): Promise<boolean>;
+  getFollowRelationshipId(followerId: string, followeeId: string): Promise<string | null>;
 
   // Feed operations
   getUserFeed(userId: string): Promise<ChirpReadModel[]>;
 
   // Materialized timeline operations
   addToTimeline(userId: string, chirpId: string): Promise<void>;
+  removeFromTimeline(userId: string, chirpId: string): Promise<void>;
+  removeAllChirpsFromTimeline(userId: string, authorId: string): Promise<void>;
   getMaterializedTimeline(userId: string): Promise<string[]>;
   addCelebrityChirp(chirpId: string, authorId: string): Promise<void>;
   getCelebrityChirpsForUser(userId: string, following: string[]): Promise<string[]>;

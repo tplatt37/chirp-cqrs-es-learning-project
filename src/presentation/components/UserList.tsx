@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useContainer } from '../context/AppContext';
 import { UserProfileReadModel } from '../../application/ports/IReadModelRepository';
 import { FollowUserCommand } from '../../application/commands/FollowUserCommand';
+import { UnfollowUserCommand } from '../../application/commands/UnfollowUserCommand';
 
 interface UserListProps {
   users: UserProfileReadModel[];
@@ -13,7 +14,32 @@ interface UserListProps {
 
 export function UserList({ users, currentUserId, onUserSelect, onSuccess, onError }: UserListProps) {
   const container = useContainer();
-  const [followingUserId, setFollowingUserId] = useState<string | null>(null);
+  const [processingUserId, setProcessingUserId] = useState<string | null>(null);
+  const [followingMap, setFollowingMap] = useState<Map<string, boolean>>(new Map());
+
+  // Load following relationships when currentUserId changes
+  useEffect(() => {
+    const loadFollowingRelationships = async () => {
+      if (!currentUserId) {
+        setFollowingMap(new Map());
+        return;
+      }
+
+      const newFollowingMap = new Map<string, boolean>();
+      for (const user of users) {
+        if (user.userId !== currentUserId) {
+          const isFollowing = await container.readModelRepository.isFollowing(
+            currentUserId,
+            user.userId
+          );
+          newFollowingMap.set(user.userId, isFollowing);
+        }
+      }
+      setFollowingMap(newFollowingMap);
+    };
+
+    loadFollowingRelationships();
+  }, [currentUserId, users, container.readModelRepository]);
 
   const handleFollow = async (followeeId: string) => {
     if (!currentUserId) {
@@ -21,16 +47,41 @@ export function UserList({ users, currentUserId, onUserSelect, onSuccess, onErro
       return;
     }
 
-    setFollowingUserId(followeeId);
+    setProcessingUserId(followeeId);
     try {
       const command = new FollowUserCommand(currentUserId, followeeId);
       await container.followUserHandler.handle(command);
       await container.projectEventsAfterCommand();
+      
+      // Update local state
+      setFollowingMap(prev => new Map(prev).set(followeeId, true));
       onSuccess();
     } catch (err) {
       onError(err instanceof Error ? err.message : 'Failed to follow user');
     } finally {
-      setFollowingUserId(null);
+      setProcessingUserId(null);
+    }
+  };
+
+  const handleUnfollow = async (followeeId: string) => {
+    if (!currentUserId) {
+      onError('Please select a user first');
+      return;
+    }
+
+    setProcessingUserId(followeeId);
+    try {
+      const command = new UnfollowUserCommand(currentUserId, followeeId);
+      await container.unfollowUserHandler.handle(command);
+      await container.projectEventsAfterCommand();
+      
+      // Update local state
+      setFollowingMap(prev => new Map(prev).set(followeeId, false));
+      onSuccess();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to unfollow user');
+    } finally {
+      setProcessingUserId(null);
     }
   };
 
@@ -43,7 +94,8 @@ export function UserList({ users, currentUserId, onUserSelect, onSuccess, onErro
         <div style={styles.list}>
           {users.map((user) => {
             const isCurrentUser = user.userId === currentUserId;
-            const isFollowing = followingUserId === user.userId;
+            const isFollowingUser = followingMap.get(user.userId) || false;
+            const isProcessing = processingUserId === user.userId;
 
             return (
               <div key={user.userId} style={styles.user}>
@@ -53,13 +105,25 @@ export function UserList({ users, currentUserId, onUserSelect, onSuccess, onErro
                 </div>
                 <div style={styles.actions}>
                   {!isCurrentUser && currentUserId && (
-                    <button
-                      onClick={() => handleFollow(user.userId)}
-                      disabled={isFollowing}
-                      style={styles.followButton}
-                    >
-                      {isFollowing ? 'Following...' : 'Follow'}
-                    </button>
+                    <>
+                      {isFollowingUser ? (
+                        <button
+                          onClick={() => handleUnfollow(user.userId)}
+                          disabled={isProcessing}
+                          style={{...styles.followButton, ...styles.unfollowButton}}
+                        >
+                          {isProcessing ? 'Processing...' : 'Unfollow'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleFollow(user.userId)}
+                          disabled={isProcessing}
+                          style={styles.followButton}
+                        >
+                          {isProcessing ? 'Processing...' : 'Follow'}
+                        </button>
+                      )}
+                    </>
                   )}
                   {!isCurrentUser && (
                     <button
@@ -134,6 +198,9 @@ const styles = {
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
+  },
+  unfollowButton: {
+    backgroundColor: '#657786',
   },
   selectButton: {
     padding: '6px 12px',

@@ -4,6 +4,7 @@ import { EventProjector } from '../infrastructure/projections/EventProjector';
 import { RegisterUserHandler } from '../application/handlers/RegisterUserHandler';
 import { PostChirpHandler } from '../application/handlers/PostChirpHandler';
 import { FollowUserHandler } from '../application/handlers/FollowUserHandler';
+import { UnfollowUserHandler } from '../application/handlers/UnfollowUserHandler';
 import { GetUserFeedHandler } from '../application/handlers/GetUserFeedHandler';
 import { GetAllUsersHandler } from '../application/handlers/GetAllUsersHandler';
 import { logger } from '../infrastructure/logging/Logger';
@@ -20,6 +21,7 @@ export class Container {
   public readonly registerUserHandler: RegisterUserHandler;
   public readonly postChirpHandler: PostChirpHandler;
   public readonly followUserHandler: FollowUserHandler;
+  public readonly unfollowUserHandler: UnfollowUserHandler;
 
   // Query handlers
   public readonly getUserFeedHandler: GetUserFeedHandler;
@@ -56,6 +58,7 @@ export class Container {
     );
     this.postChirpHandler = new PostChirpHandler(this.eventStore, this.readModelRepository);
     this.followUserHandler = new FollowUserHandler(this.eventStore, this.readModelRepository);
+    this.unfollowUserHandler = new UnfollowUserHandler(this.eventStore, this.readModelRepository);
 
     // Initialize query handlers
     logger.debug('Container: Creating query handlers', {

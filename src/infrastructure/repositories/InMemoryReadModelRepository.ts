@@ -8,6 +8,7 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
   private users: Map<string, UserProfileReadModel> = new Map();
   private chirps: Map<string, ChirpReadModel> = new Map();
   private following: Map<string, Set<string>> = new Map(); // followerId -> Set of followeeIds
+  private followRelationshipIds: Map<string, string> = new Map(); // "followerId:followeeId" -> relationshipId
 
   // Materialized timeline storage for write-time fan-out
   private materializedTimelines: Map<string, string[]> = new Map(); // userId -> [chirpId...] (sorted by time, newest first)
@@ -60,10 +61,30 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
   }
 
   // Follow operations
-  async addFollowing(followerId: string, followeeId: string): Promise<void> {
+  async addFollowing(followerId: string, followeeId: string, relationshipId?: string): Promise<void> {
     const followingSet = this.following.get(followerId) || new Set();
     followingSet.add(followeeId);
     this.following.set(followerId, followingSet);
+    
+    // Store relationship ID if provided
+    if (relationshipId) {
+      const key = `${followerId}:${followeeId}`;
+      this.followRelationshipIds.set(key, relationshipId);
+    }
+  }
+
+  async removeFollowing(followerId: string, followeeId: string): Promise<void> {
+    const followingSet = this.following.get(followerId);
+    if (followingSet) {
+      followingSet.delete(followeeId);
+      if (followingSet.size === 0) {
+        this.following.delete(followerId);
+      }
+    }
+    
+    // Remove relationship ID mapping
+    const key = `${followerId}:${followeeId}`;
+    this.followRelationshipIds.delete(key);
   }
 
   async getFollowing(userId: string): Promise<string[]> {
@@ -84,6 +105,11 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
   async isFollowing(followerId: string, followeeId: string): Promise<boolean> {
     const followingSet = this.following.get(followerId);
     return followingSet ? followingSet.has(followeeId) : false;
+  }
+
+  async getFollowRelationshipId(followerId: string, followeeId: string): Promise<string | null> {
+    const key = `${followerId}:${followeeId}`;
+    return this.followRelationshipIds.get(key) || null;
   }
 
   // Feed operations (OLD IMPLEMENTATION - will be replaced with materialized timeline approach)
@@ -125,6 +151,28 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
     }
     
     this.materializedTimelines.set(userId, timeline);
+  }
+
+  async removeFromTimeline(userId: string, chirpId: string): Promise<void> {
+    const timeline = this.materializedTimelines.get(userId);
+    if (timeline) {
+      const index = timeline.indexOf(chirpId);
+      if (index > -1) {
+        timeline.splice(index, 1);
+      }
+    }
+  }
+
+  async removeAllChirpsFromTimeline(userId: string, authorId: string): Promise<void> {
+    const timeline = this.materializedTimelines.get(userId);
+    if (!timeline) return;
+    
+    // Filter out all chirps from the specified author
+    const authorChirps = await this.getChirpsByAuthor(authorId);
+    const authorChirpIds = new Set(authorChirps.map(c => c.chirpId));
+    
+    const filteredTimeline = timeline.filter(chirpId => !authorChirpIds.has(chirpId));
+    this.materializedTimelines.set(userId, filteredTimeline);
   }
 
   async getMaterializedTimeline(userId: string): Promise<string[]> {

@@ -33,3 +33,10 @@ export class CannotFollowSelfError extends DomainError {
     this.name = 'CannotFollowSelfError';
   }
 }
+
+export class NotFollowingError extends DomainError {
+  constructor(followerId: string, followeeId: string) {
+    super(`User ${followerId} is not following user ${followeeId}`);
+    this.name = 'NotFollowingError';
+  }
+}
