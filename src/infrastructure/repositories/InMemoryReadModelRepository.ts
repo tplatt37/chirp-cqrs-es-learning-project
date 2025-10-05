@@ -13,6 +13,7 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
   // Materialized timeline storage for write-time fan-out
   private materializedTimelines: Map<string, string[]> = new Map(); // userId -> [chirpId...] (sorted by time, newest first)
   private celebrityChirps: Map<string, string> = new Map(); // chirpId -> authorId (tracks chirps from celebrities)
+  private celebrityChirpsByAuthor: Map<string, Set<string>> = new Map(); // authorId -> Set<chirpId> (optimized index for lookups)
   private readonly CELEBRITY_THRESHOLD = 4; // Users with > 4 followers are celebrities
   private readonly MAX_TIMELINE_SIZE = 800; // Maximum chirps per user timeline
 
@@ -180,17 +181,23 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
   }
 
   async addCelebrityChirp(chirpId: string, authorId: string): Promise<void> {
-    // Track this chirp as coming from a celebrity
+    // Track this chirp as coming from a celebrity (for backward compatibility)
     this.celebrityChirps.set(chirpId, authorId);
+    
+    // Add to optimized author-based index
+    const authorChirps = this.celebrityChirpsByAuthor.get(authorId) || new Set();
+    authorChirps.add(chirpId);
+    this.celebrityChirpsByAuthor.set(authorId, authorChirps);
   }
 
   async getCelebrityChirpsForUser(_userId: string, following: string[]): Promise<string[]> {
-    // Find all celebrity chirps from users being followed
+    // Optimized: Only iterate through followed users (O(f) instead of O(m × n))
     const celebrityChirpIds: string[] = [];
     
-    for (const [chirpId, authorId] of this.celebrityChirps.entries()) {
-      if (following.includes(authorId)) {
-        celebrityChirpIds.push(chirpId);
+    for (const authorId of following) {
+      const chirpIds = this.celebrityChirpsByAuthor.get(authorId);
+      if (chirpIds) {
+        celebrityChirpIds.push(...chirpIds);
       }
     }
     
@@ -221,6 +228,10 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
 
   getCelebrityChirpsMap(): Map<string, string> {
     return new Map(this.celebrityChirps);
+  }
+
+  getCelebrityChirpsByAuthorMap(): Map<string, Set<string>> {
+    return new Map(this.celebrityChirpsByAuthor);
   }
 
   getCelebrityThreshold(): number {

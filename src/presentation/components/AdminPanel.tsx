@@ -38,6 +38,7 @@ export function AdminPanel() {
     following: Map<string, Set<string>>;
     timelines: Map<string, string[]>;
     celebrityChirps: Map<string, string>;
+    celebrityChirpsByAuthor: Map<string, Set<string>>;
     celebrityThreshold: number;
   }>({
     users: new Map(),
@@ -45,6 +46,7 @@ export function AdminPanel() {
     following: new Map(),
     timelines: new Map(),
     celebrityChirps: new Map(),
+    celebrityChirpsByAuthor: new Map(),
     celebrityThreshold: 0,
   });
 
@@ -91,6 +93,7 @@ export function AdminPanel() {
         following: container.readModelRepository.getFollowingMap(),
         timelines: container.readModelRepository.getMaterializedTimelinesMap(),
         celebrityChirps: container.readModelRepository.getCelebrityChirpsMap(),
+        celebrityChirpsByAuthor: container.readModelRepository.getCelebrityChirpsByAuthorMap(),
         celebrityThreshold: container.readModelRepository.getCelebrityThreshold(),
       });
     }, 500);
@@ -854,6 +857,55 @@ export function AdminPanel() {
                         )}
                         <div style={styles.dataItemDetails}>
                           Chirp ID: {chirpId.slice(0, 8)}...
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Celebrity Chirps By Author (Optimized Index) */}
+          <div style={styles.dataSection}>
+            <div 
+              style={styles.dataSectionHeader}
+              onClick={() => toggleSection('celebrityByAuthor')}
+            >
+              <span style={styles.expandIcon}>
+                {expandedSections.has('celebrityByAuthor') ? '▼' : '▶'}
+              </span>
+              <span style={styles.sectionTitle}>🚀 Celebrity Chirps by Author - Optimized Index ({readModelData.celebrityChirpsByAuthor.size})</span>
+            </div>
+            {expandedSections.has('celebrityByAuthor') && (
+              <div style={styles.dataSectionContent}>
+                <div style={{...styles.infoBox, backgroundColor: '#d4edda', borderColor: '#c3e6cb', color: '#155724'}}>
+                  ✨ This optimized index enables O(f) lookups where f = followed users, instead of O(m × n) where m = total celebrity chirps and n = followed users.
+                </div>
+                {readModelData.celebrityChirpsByAuthor.size === 0 ? (
+                  <div style={styles.emptyState}>No celebrity chirps indexed yet</div>
+                ) : (
+                  Array.from(readModelData.celebrityChirpsByAuthor.entries()).map(([authorId, chirpIds]) => {
+                    const author = readModelData.users.get(authorId);
+                    return (
+                      <div key={authorId} style={styles.dataItem}>
+                        <div style={styles.dataItemHeader}>
+                          <strong>⭐ {author?.username || 'Unknown'}</strong>
+                          <span style={styles.countBadge}>
+                            {chirpIds.size} chirps
+                          </span>
+                        </div>
+                        <div style={styles.timelineList}>
+                          {Array.from(chirpIds).slice(0, 5).map(chirpId => (
+                            <div key={chirpId} style={styles.timelineItem}>
+                              {chirpId.slice(0, 8)}...
+                            </div>
+                          ))}
+                          {chirpIds.size > 5 && (
+                            <div style={styles.timelineItem}>
+                              ... and {chirpIds.size - 5} more
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
