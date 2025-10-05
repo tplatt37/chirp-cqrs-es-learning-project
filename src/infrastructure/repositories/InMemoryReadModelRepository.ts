@@ -13,7 +13,7 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
   // Materialized timeline storage for write-time fan-out
   private materializedTimelines: Map<string, string[]> = new Map(); // userId -> [chirpId...] (sorted by time, newest first)
   private celebrityChirps: Map<string, string> = new Map(); // chirpId -> authorId (tracks chirps from celebrities)
-  private readonly CELEBRITY_THRESHOLD = 1000; // Users with > 1000 followers are celebrities
+  private readonly CELEBRITY_THRESHOLD = 4; // Users with > 4 followers are celebrities
   private readonly MAX_TIMELINE_SIZE = 800; // Maximum chirps per user timeline
 
   // User profile operations
