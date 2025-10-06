@@ -2,6 +2,8 @@
 
 A Twitter-like social network application built with TypeScript and React, demonstrating Domain-Driven Design, Hexagonal Architecture, CQRS, and Event Sourcing patterns.
 
+I created this to help students visualize and understand the flow of events and processing that happens in a CQRS + Event Sourcing architecture.
+
 Created with Cline and Anthropic Sonnet 4.5
 
 ## Features
