@@ -124,7 +124,7 @@ function AppContent() {
 
         {/* Admin Panel */}
         {isAdminPanelOpen && (
-          <AdminPanel />
+          <AdminPanel onDataChanged={refresh} />
         )}
       </div>
     </div>

@@ -7,7 +7,11 @@ import { UserProfileReadModel, ChirpReadModel } from '../../application/ports/IR
 
 type TabType = 'logs' | 'eventStore' | 'readModel' | 'hydrate';
 
-export function AdminPanel() {
+interface AdminPanelProps {
+  onDataChanged?: () => void;
+}
+
+export function AdminPanel({ onDataChanged }: AdminPanelProps) {
   const container = useContainer();
   const [activeTab, setActiveTab] = useState<TabType>('logs');
   const [logLevel, setLogLevel] = useState<LogLevel>('debug');
@@ -200,7 +204,7 @@ export function AdminPanel() {
 
     try {
       // Define test usernames
-      const usernames = ['alice_smith', 'bob_johnson', 'carol_davis', 'dave_wilson'];
+      const usernames = ['alice_smith', 'bob_johnson', 'carol_davis', 'dave_wilson', 'tim', 'eve_brown'];
       
       // Define chirp templates
       const chirpTemplates = [
@@ -279,6 +283,14 @@ export function AdminPanel() {
       // Create follow relationships
       setHydrationStatus('Creating follow relationships...');
       const followPairs: [number, number][] = [
+        // Everyone follows tim (making tim a Celebrity with 5 followers)
+        [0, 4], // alice follows tim ★
+        [1, 4], // bob follows tim ★
+        [2, 4], // carol follows tim ★
+        [3, 4], // dave follows tim ★
+        [5, 4], // eve follows tim ★
+        
+        // Additional relationships for realistic network
         [0, 1], // alice follows bob
         [0, 2], // alice follows carol
         [1, 0], // bob follows alice
@@ -287,6 +299,10 @@ export function AdminPanel() {
         [2, 0], // carol follows alice
         [3, 1], // dave follows bob
         [3, 2], // dave follows carol
+        [5, 0], // eve follows alice
+        [5, 1], // eve follows bob
+        [4, 0], // tim follows alice
+        [4, 3], // tim follows dave
       ];
 
       for (const pair of followPairs) {
@@ -310,6 +326,11 @@ export function AdminPanel() {
       }
 
       setHydrationStatus('✅ Hydration complete!');
+      
+      // Trigger UI refresh in the main app
+      if (onDataChanged) {
+        onDataChanged();
+      }
     } catch (error) {
       setHydrationError(`Error during hydration: ${error instanceof Error ? error.message : String(error)}`);
       setHydrationStatus('❌ Hydration failed');
@@ -572,9 +593,10 @@ export function AdminPanel() {
               <strong>What will be created:</strong>
             </p>
             <ul style={{margin: 0, paddingLeft: '20px'}}>
-              <li>4 users with realistic usernames</li>
+              <li>6 users with realistic usernames (including "tim" who becomes a Celebrity)</li>
               <li>3-4 random chirps per user</li>
-              <li>8 follow relationships creating an interconnected social graph</li>
+              <li>17 follow relationships creating an interconnected social graph</li>
+              <li>Tim achieves Celebrity status by having 5 followers</li>
             </ul>
           </div>
 
