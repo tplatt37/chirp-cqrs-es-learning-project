@@ -61,6 +61,10 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
     );
   }
 
+  async deleteChirp(chirpId: string): Promise<void> {
+    this.chirps.delete(chirpId);
+  }
+
   // Follow operations
   async addFollowing(followerId: string, followeeId: string, relationshipId?: string): Promise<void> {
     const followingSet = this.following.get(followerId) || new Set();
@@ -176,6 +180,17 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
     this.materializedTimelines.set(userId, filteredTimeline);
   }
 
+  async removeChirpFromAllTimelines(chirpId: string): Promise<void> {
+    // Remove the chirp from all user timelines
+    for (const [userId, timeline] of this.materializedTimelines.entries()) {
+      const index = timeline.indexOf(chirpId);
+      if (index > -1) {
+        timeline.splice(index, 1);
+        this.materializedTimelines.set(userId, timeline);
+      }
+    }
+  }
+
   async getMaterializedTimeline(userId: string): Promise<string[]> {
     return this.materializedTimelines.get(userId) || [];
   }
@@ -188,6 +203,27 @@ export class InMemoryReadModelRepository implements IReadModelRepository {
     const authorChirps = this.celebrityChirpsByAuthor.get(authorId) || new Set();
     authorChirps.add(chirpId);
     this.celebrityChirpsByAuthor.set(authorId, authorChirps);
+  }
+
+  async removeCelebrityChirp(chirpId: string): Promise<void> {
+    // Get the author ID before removing
+    const authorId = this.celebrityChirps.get(chirpId);
+    
+    // Remove from main tracking map
+    this.celebrityChirps.delete(chirpId);
+    
+    // Remove from author-based index
+    if (authorId) {
+      const authorChirps = this.celebrityChirpsByAuthor.get(authorId);
+      if (authorChirps) {
+        authorChirps.delete(chirpId);
+        if (authorChirps.size === 0) {
+          this.celebrityChirpsByAuthor.delete(authorId);
+        } else {
+          this.celebrityChirpsByAuthor.set(authorId, authorChirps);
+        }
+      }
+    }
   }
 
   async getCelebrityChirpsForUser(_userId: string, following: string[]): Promise<string[]> {

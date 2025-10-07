@@ -3,9 +3,11 @@ import { ChirpReadModel } from '../../application/ports/IReadModelRepository';
 interface ChirpListProps {
   chirps: ChirpReadModel[];
   title?: string;
+  currentUserId?: string;
+  onDeleteChirp?: (chirpId: string) => void;
 }
 
-export function ChirpList({ chirps, title = 'Your Feed' }: ChirpListProps) {
+export function ChirpList({ chirps, title = 'Your Feed', currentUserId, onDeleteChirp }: ChirpListProps) {
   if (chirps.length === 0) {
     return (
       <div style={styles.empty}>
@@ -21,9 +23,20 @@ export function ChirpList({ chirps, title = 'Your Feed' }: ChirpListProps) {
         <div key={chirp.chirpId} style={styles.chirp}>
           <div style={styles.header}>
             <span style={styles.username}>@{chirp.authorUsername}</span>
-            <span style={styles.date}>
-              {new Date(chirp.postedAt).toLocaleString()}
-            </span>
+            <div style={styles.headerRight}>
+              <span style={styles.date}>
+                {new Date(chirp.postedAt).toLocaleString()}
+              </span>
+              {currentUserId && chirp.authorId === currentUserId && onDeleteChirp && (
+                <button
+                  onClick={() => onDeleteChirp(chirp.chirpId)}
+                  style={styles.deleteButton}
+                  title="Delete chirp"
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
           </div>
           <p style={styles.content}>{chirp.content}</p>
         </div>
@@ -61,6 +74,11 @@ const styles = {
     alignItems: 'center',
     marginBottom: '10px',
   },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
   username: {
     fontWeight: 'bold' as const,
     color: '#1da1f2',
@@ -68,6 +86,15 @@ const styles = {
   date: {
     fontSize: '12px',
     color: '#657786',
+  },
+  deleteButton: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    padding: '4px',
+    opacity: 0.6,
+    transition: 'opacity 0.2s',
   },
   content: {
     margin: 0,

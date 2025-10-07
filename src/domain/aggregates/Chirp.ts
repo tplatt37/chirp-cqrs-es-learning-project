@@ -3,6 +3,7 @@ import { UserId } from '../value-objects/UserId';
 import { ChirpContent } from '../value-objects/ChirpContent';
 import { DomainEvent } from '../events/DomainEvent';
 import { ChirpPosted } from '../events/ChirpPosted';
+import { ChirpDeleted } from '../events/ChirpDeleted';
 import { logger } from '../../infrastructure/logging/Logger';
 
 export class Chirp {
@@ -10,6 +11,7 @@ export class Chirp {
   private authorId: UserId;
   private content: ChirpContent;
   private postedAt: Date;
+  private isDeleted: boolean;
   private version: number;
   private uncommittedEvents: DomainEvent[];
 
@@ -24,6 +26,7 @@ export class Chirp {
     this.authorId = authorId;
     this.content = content;
     this.postedAt = postedAt;
+    this.isDeleted = false;
     this.version = version;
     this.uncommittedEvents = [];
   }
@@ -129,6 +132,8 @@ export class Chirp {
       this.authorId = UserId.fromString(event.authorId);
       this.content = ChirpContent.create(event.content);
       this.postedAt = event.postedAt;
+    } else if (event instanceof ChirpDeleted) {
+      this.isDeleted = true;
     }
     this.version = event.version;
   }
@@ -151,6 +156,47 @@ export class Chirp {
 
   getVersion(): number {
     return this.version;
+  }
+
+  getIsDeleted(): boolean {
+    return this.isDeleted;
+  }
+
+  delete(): void {
+    if (this.isDeleted) {
+      logger.warn('Attempt to delete already deleted chirp', {
+        layer: 'domain',
+        component: 'Chirp',
+        action: 'delete',
+        data: { chirpId: this.id.getValue() },
+      });
+      throw new Error('Chirp is already deleted');
+    }
+
+    logger.debug('Deleting chirp', {
+      layer: 'domain',
+      component: 'Chirp',
+      action: 'delete',
+      data: { 
+        chirpId: this.id.getValue(),
+        authorId: this.authorId.getValue(),
+      },
+    });
+
+    const event = new ChirpDeleted(this.id.getValue(), this.version + 1);
+    
+    logger.info('Chirp deleted, emitting ChirpDeleted event', {
+      layer: 'domain',
+      component: 'Chirp',
+      action: 'delete',
+      data: { 
+        chirpId: this.id.getValue(),
+        version: event.version,
+      },
+    });
+
+    this.applyEvent(event);
+    this.uncommittedEvents.push(event);
   }
 
   getUncommittedEvents(): DomainEvent[] {

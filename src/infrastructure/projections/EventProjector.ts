@@ -1,6 +1,7 @@
 import { DomainEvent } from '../../domain/events/DomainEvent';
 import { UserRegistered } from '../../domain/events/UserRegistered';
 import { ChirpPosted } from '../../domain/events/ChirpPosted';
+import { ChirpDeleted } from '../../domain/events/ChirpDeleted';
 import { UserFollowed } from '../../domain/events/UserFollowed';
 import { UserUnfollowed } from '../../domain/events/UserUnfollowed';
 import { IReadModelRepository } from '../../application/ports/IReadModelRepository';
@@ -31,6 +32,8 @@ export class EventProjector {
       await this.projectUserRegistered(event);
     } else if (event instanceof ChirpPosted) {
       await this.projectChirpPosted(event);
+    } else if (event instanceof ChirpDeleted) {
+      await this.projectChirpDeleted(event);
     } else if (event instanceof UserFollowed) {
       await this.projectUserFollowed(event);
     } else if (event instanceof UserUnfollowed) {
@@ -171,6 +174,84 @@ export class EventProjector {
         },
       });
     }
+  }
+
+  private async projectChirpDeleted(event: ChirpDeleted): Promise<void> {
+    logger.debug('EventProjector: Projecting ChirpDeleted event', {
+      layer: 'infrastructure',
+      component: 'EventProjector',
+      action: 'projectChirpDeleted',
+      data: {
+        chirpId: event.aggregateId,
+      },
+    });
+
+    // Get the chirp to determine if author is a celebrity
+    const chirp = await this.readModelRepository.getChirp(event.aggregateId);
+    if (!chirp) {
+      logger.error('EventProjector: Chirp not found for deletion', undefined, {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectChirpDeleted',
+        data: { chirpId: event.aggregateId },
+      });
+      throw new Error(`Chirp not found: ${event.aggregateId}`);
+    }
+
+    const isCelebrity = await this.readModelRepository.isCelebrity(chirp.authorId);
+
+    if (isCelebrity) {
+      // Remove from celebrity chirp tracking
+      await this.readModelRepository.removeCelebrityChirp(event.aggregateId);
+
+      logger.info('EventProjector: Celebrity chirp removed from tracking', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectChirpDeleted',
+        data: {
+          chirpId: event.aggregateId,
+          authorId: chirp.authorId,
+          isCelebrity: true,
+        },
+      });
+    } else {
+      // Remove from all follower timelines
+      logger.debug('EventProjector: Removing chirp from all timelines', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectChirpDeleted',
+        data: {
+          chirpId: event.aggregateId,
+          authorId: chirp.authorId,
+        },
+      });
+
+      await this.readModelRepository.removeChirpFromAllTimelines(event.aggregateId);
+
+      logger.info('EventProjector: Chirp removed from all timelines', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectChirpDeleted',
+        data: {
+          chirpId: event.aggregateId,
+          authorId: chirp.authorId,
+          isCelebrity: false,
+        },
+      });
+    }
+
+    // Delete the chirp from read model
+    await this.readModelRepository.deleteChirp(event.aggregateId);
+
+    logger.info('EventProjector: Chirp removed from read model', {
+      layer: 'infrastructure',
+      component: 'EventProjector',
+      action: 'projectChirpDeleted',
+      data: {
+        chirpId: event.aggregateId,
+        authorId: chirp.authorId,
+      },
+    });
   }
 
   private async projectUserFollowed(event: UserFollowed): Promise<void> {

@@ -3,6 +3,7 @@ import { InMemoryReadModelRepository } from '../infrastructure/repositories/InMe
 import { EventProjector } from '../infrastructure/projections/EventProjector';
 import { RegisterUserHandler } from '../application/handlers/RegisterUserHandler';
 import { PostChirpHandler } from '../application/handlers/PostChirpHandler';
+import { DeleteChirpHandler } from '../application/handlers/DeleteChirpHandler';
 import { FollowUserHandler } from '../application/handlers/FollowUserHandler';
 import { UnfollowUserHandler } from '../application/handlers/UnfollowUserHandler';
 import { GetUserFeedHandler } from '../application/handlers/GetUserFeedHandler';
@@ -20,6 +21,7 @@ export class Container {
   // Command handlers
   public readonly registerUserHandler: RegisterUserHandler;
   public readonly postChirpHandler: PostChirpHandler;
+  public readonly deleteChirpHandler: DeleteChirpHandler;
   public readonly followUserHandler: FollowUserHandler;
   public readonly unfollowUserHandler: UnfollowUserHandler;
 
@@ -57,6 +59,7 @@ export class Container {
       this.readModelRepository
     );
     this.postChirpHandler = new PostChirpHandler(this.eventStore, this.readModelRepository);
+    this.deleteChirpHandler = new DeleteChirpHandler(this.eventStore);
     this.followUserHandler = new FollowUserHandler(this.eventStore, this.readModelRepository);
     this.unfollowUserHandler = new UnfollowUserHandler(this.eventStore, this.readModelRepository);
 

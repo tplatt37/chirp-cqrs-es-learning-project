@@ -3,6 +3,7 @@ import { useContainer } from '../context/AppContext';
 import { UserProfileReadModel, ChirpReadModel } from '../../application/ports/IReadModelRepository';
 import { GetAllUsersQuery } from '../../application/queries/GetAllUsersQuery';
 import { GetUserFeedQuery } from '../../application/queries/GetUserFeedQuery';
+import { DeleteChirpCommand } from '../../application/commands/DeleteChirpCommand';
 
 export function useAppState() {
   const container = useContainer();
@@ -48,6 +49,22 @@ export function useAppState() {
     }
   }, [currentUserId, container]);
 
+  const deleteChirp = useCallback(async (chirpId: string) => {
+    if (!currentUserId) {
+      setError('Must be logged in to delete chirps');
+      return;
+    }
+
+    try {
+      const command = new DeleteChirpCommand(chirpId, currentUserId);
+      await container.deleteChirpHandler.handle(command);
+      await container.projectEventsAfterCommand();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete chirp');
+    }
+  }, [currentUserId, container]);
+
   const refresh = useCallback(async () => {
     await loadUsers();
     await loadFeed();
@@ -75,5 +92,6 @@ export function useAppState() {
     error,
     setError,
     refresh,
+    deleteChirp,
   };
 }
