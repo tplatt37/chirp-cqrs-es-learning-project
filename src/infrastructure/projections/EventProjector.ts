@@ -312,14 +312,35 @@ export class EventProjector {
         },
       });
     } else {
-      // For celebrities, chirps will be pulled at read time
-      logger.info('EventProjector: Followed user is celebrity, no backfill needed', {
+      // For celebrities, ensure all their chirps are in the celebrity index
+      // This handles cases where chirps were posted before they became a celebrity
+      const existingChirps = await this.readModelRepository.getChirpsByAuthor(event.followeeId);
+      
+      logger.debug('EventProjector: Ensuring celebrity chirps are properly indexed', {
         layer: 'infrastructure',
         component: 'EventProjector',
         action: 'projectUserFollowed',
         data: { 
           followerId: event.followerId,
           followeeId: event.followeeId,
+          chirpCount: existingChirps.length,
+          isCelebrity: true,
+        },
+      });
+      
+      // Add each chirp to the celebrity index if not already there
+      for (const chirp of existingChirps) {
+        await this.readModelRepository.addCelebrityChirp(chirp.chirpId, event.followeeId);
+      }
+      
+      logger.info('EventProjector: Celebrity chirps indexed (pulled at read time)', {
+        layer: 'infrastructure',
+        component: 'EventProjector',
+        action: 'projectUserFollowed',
+        data: { 
+          followerId: event.followerId,
+          followeeId: event.followeeId,
+          chirpCount: existingChirps.length,
           isCelebrity: true,
         },
       });

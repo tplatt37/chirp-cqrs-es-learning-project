@@ -56,6 +56,9 @@ export function AdminPanel({ onDataChanged }: AdminPanelProps) {
 
   const [expandedAggregates, setExpandedAggregates] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['users']));
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState<boolean>(false);
 
   // Hydration state
   const [isHydrating, setIsHydrating] = useState(false);
@@ -79,8 +82,38 @@ export function AdminPanel({ onDataChanged }: AdminPanelProps) {
     setLogLevel(config.level);
     setIsEnabled(config.enabled);
 
+    // Add pulse animation to document
+    const styleId = 'admin-panel-animations';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.2);
+            opacity: 0.8;
+          }
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     // Update logs and data every 500ms
     const interval = setInterval(() => {
+      setIsRefreshing(true);
+      
       setLogs(logger.getStoredLogs());
       
       // Update event store data
@@ -100,10 +133,16 @@ export function AdminPanel({ onDataChanged }: AdminPanelProps) {
         celebrityChirpsByAuthor: container.readModelRepository.getCelebrityChirpsByAuthorMap(),
         celebrityThreshold: container.readModelRepository.getCelebrityThreshold(),
       });
+      
+      setLastRefreshTime(new Date());
+      
+      // Reset refresh indicator after a brief moment
+      setTimeout(() => setIsRefreshing(false), 150);
     }, 500);
 
     return () => clearInterval(interval);
-  }, [configService, container]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLevelChange = (level: LogLevel) => {
     setLogLevel(level);
@@ -343,6 +382,50 @@ export function AdminPanel({ onDataChanged }: AdminPanelProps) {
     if (window.confirm('Are you sure you want to clear all data? This will reload the page.')) {
       window.location.reload();
     }
+  };
+
+  const handleManualRefresh = async () => {
+    setIsManualRefreshing(true);
+    setIsRefreshing(true);
+    
+    // Add a small delay to show the spinner
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Completely reload all data from memory
+    setLogs(logger.getStoredLogs());
+    
+    setEventStoreData({
+      byAggregate: container.eventStore.getEventsByAggregate(),
+      totalEvents: container.eventStore.getTotalEventCount(),
+      aggregateCount: container.eventStore.getAggregateCount(),
+    });
+
+    setReadModelData({
+      users: container.readModelRepository.getAllUsersMap(),
+      chirps: container.readModelRepository.getAllChirpsMap(),
+      following: container.readModelRepository.getFollowingMap(),
+      timelines: container.readModelRepository.getMaterializedTimelinesMap(),
+      celebrityChirps: container.readModelRepository.getCelebrityChirpsMap(),
+      celebrityChirpsByAuthor: container.readModelRepository.getCelebrityChirpsByAuthorMap(),
+      celebrityThreshold: container.readModelRepository.getCelebrityThreshold(),
+    });
+    
+    setLastRefreshTime(new Date());
+    
+    // Keep spinner visible for a moment
+    setTimeout(() => {
+      setIsRefreshing(false);
+      setIsManualRefreshing(false);
+    }, 300);
+  };
+
+  const formatRefreshTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: false 
+    });
   };
 
   const renderLogsTab = () => (
@@ -944,8 +1027,46 @@ export function AdminPanel({ onDataChanged }: AdminPanelProps) {
   return (
     <div style={styles.panel}>
           <div style={styles.header}>
-            <h3 style={styles.title}>🔍 Administrator Panel</h3>
-            <p style={styles.subtitle}>CQRS/Event Sourcing Data Inspector</p>
+            <div style={styles.headerTop}>
+              <div>
+                <h3 style={styles.title}>🔍 Administrator Panel</h3>
+                <p style={styles.subtitle}>CQRS/Event Sourcing Data Inspector</p>
+              </div>
+              <div style={styles.refreshIndicator}>
+                <div style={styles.liveStatus}>
+                  <span style={{
+                    ...styles.liveIcon,
+                    animation: isRefreshing ? 'pulse 0.15s ease-in-out' : 'none',
+                  }}>
+                    🟢
+                  </span>
+                  <span style={styles.liveText}>Live</span>
+                </div>
+                <div style={styles.refreshInfo}>
+                  <span style={styles.refreshLabel}>Updates every 0.5s</span>
+                  <span style={styles.refreshTime}>
+                    Last: {formatRefreshTime(lastRefreshTime)}
+                  </span>
+                </div>
+                <button
+                  onClick={handleManualRefresh}
+                  disabled={isManualRefreshing}
+                  style={{
+                    ...styles.refreshButton,
+                    cursor: isManualRefreshing ? 'not-allowed' : 'pointer',
+                    opacity: isManualRefreshing ? 0.7 : 1,
+                  }}
+                  title="Click to reload all data from memory"
+                >
+                  <span style={{
+                    display: 'inline-block',
+                    animation: isManualRefreshing ? 'spin 0.8s linear infinite' : 'none',
+                  }}>
+                    ↻
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Tab Navigation */}
@@ -1475,5 +1596,60 @@ const styles = {
     fontSize: '12px',
     color: '#856404',
     border: '1px solid #ffeeba',
+  },
+  headerTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  refreshIndicator: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    padding: '8px 12px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+  },
+  liveStatus: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+  },
+  liveIcon: {
+    fontSize: '10px',
+    display: 'inline-block',
+  },
+  liveText: {
+    fontSize: '12px',
+    fontWeight: 'bold' as const,
+    textTransform: 'uppercase' as const,
+  },
+  refreshInfo: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '2px',
+  },
+  refreshLabel: {
+    fontSize: '10px',
+    opacity: 0.8,
+  },
+  refreshTime: {
+    fontSize: '11px',
+    fontFamily: 'monospace',
+  },
+  refreshButton: {
+    background: 'rgba(255, 255, 255, 0.2)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    color: 'white',
+    borderRadius: '4px',
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '18px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
   },
 };

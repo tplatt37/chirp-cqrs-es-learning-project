@@ -49,6 +49,12 @@ export function useAppState() {
     }
   }, [currentUserId, container]);
 
+  const refresh = useCallback(async () => {
+    await loadUsers();
+    await loadFeed();
+    await loadOwnChirps();
+  }, [loadUsers, loadFeed, loadOwnChirps]);
+
   const deleteChirp = useCallback(async (chirpId: string) => {
     if (!currentUserId) {
       setError('Must be logged in to delete chirps');
@@ -63,13 +69,7 @@ export function useAppState() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete chirp');
     }
-  }, [currentUserId, container]);
-
-  const refresh = useCallback(async () => {
-    await loadUsers();
-    await loadFeed();
-    await loadOwnChirps();
-  }, [loadUsers, loadFeed, loadOwnChirps]);
+  }, [currentUserId, container, refresh]);
 
   useEffect(() => {
     loadUsers();
